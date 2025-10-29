@@ -1,12 +1,5 @@
 {
-  "name": "ielts-writing-test-set-three",
+  "name": "ielts-writing-test",
   "version": "1.0.0",
-  "description": "IELTS Writing Test - Set Three",
-  "main": "index.html",
-  "scripts": {
-    "dev": "serve ."
-  },
-  "keywords": ["ielts", "writing", "test"],
-  "author": "",
-  "license": "MIT"
+  "type": "module"
 }
