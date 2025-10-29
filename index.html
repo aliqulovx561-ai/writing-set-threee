@@ -407,6 +407,25 @@
       font-weight: bold;
       line-height: 1.4;
     }
+
+    .telegram-status {
+      text-align: center;
+      padding: 10px;
+      margin: 10px 30px;
+      border-radius: 4px;
+    }
+    
+    .telegram-status.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .telegram-status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
   </style>
 </head>
 <body>
@@ -515,9 +534,8 @@
         </div>
       </div>
       <div class="right">
-        <textarea id="textarea1" spellcheck="false" placeholder="Write your Task 1 response here..." oninput="updateWordCount('1')" onkeydown="handleTyping('1')" onpaste="handlePaste('1')"></textarea>
+        <textarea id="textarea1" spellcheck="false" placeholder="Write your Task 1 response here..." oninput="updateWordCount('1')"></textarea>
         <div class="word-count" id="count1">Words: 0</div>
-        <div class="typing-speed" id="speed1">Speed: 0 WPM</div>
       </div>
     </div>
 
@@ -530,13 +548,14 @@
         </div>
       </div>
       <div class="right">
-        <textarea id="textarea2" spellcheck="false" placeholder="Write your Task 2 response here..." oninput="updateWordCount('2')" onkeydown="handleTyping('2')" onpaste="handlePaste('2')"></textarea>
+        <textarea id="textarea2" spellcheck="false" placeholder="Write your Task 2 response here..." oninput="updateWordCount('2')"></textarea>
         <div class="word-count" id="count2">Words: 0</div>
-        <div class="typing-speed" id="speed2">Speed: 0 WPM</div>
       </div>
     </div>
 
     <div class="loading" id="loadingIndicator">Sending answers to examiner... Please wait.</div>
+    
+    <div id="telegramStatus" class="telegram-status" style="display: none;"></div>
     
     <div id="submissionConfirmation" class="submission-confirmation" style="display: none;">
       Test submitted successfully! You can now review your answers.
@@ -551,76 +570,18 @@
     </div>
   </div>
 
-  <div id="warningModal" class="modal">
-    <div class="modal-content">
-      <h2>Warning: Test Violation</h2>
-      <p>You have switched to another application or tab during the test.</p>
-      <p>This is a violation of test rules. Your test will be automatically submitted now.</p>
-      <button onclick="forceSubmit()">OK</button>
-    </div>
-  </div>
-
-  <div id="typingWarningModal" class="modal">
-    <div class="modal-content">
-      <h2>Warning: Unusual Typing Pattern Detected</h2>
-      <p>Your typing speed appears to be unusually high, which may indicate pasting content or using assistance.</p>
-      <p>Please ensure you are typing your own responses. Further violations will result in test termination.</p>
-      <button onclick="closeTypingWarning()">I Understand</button>
-    </div>
-  </div>
-
   <script>
     let chosenTask1 = { 
       question: "The graph below shows the number of inquiries received by the Tourist Information Office in one city over a six-month period in 2011.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.", 
       image: "https://i.ibb.co/4RmQYKpw/line-grapht-task-one.jpg" 
     };
     let chosenTask2 = "In many countries, traditional foods are being replaced by fast food. This has a negative impact on families, individuals, and society. To what extent do you agree or disagree?";
-    let task1ImageData = "";
     let totalSeconds = 60 * 60;
     let isTestActive = false;
-    let warningCount = 0;
-    const maxWarnings = 2;
     let timer;
     let studentName = "";
     let teacherName = "";
     let isSubmitted = false;
-    let violationDetected = false;
-    let beforeUnloadTriggered = false;
-
-    let violations = {
-      tabSwitching: 0,
-      appSwitching: 0,
-      highTypingSpeed: 0,
-      pasteDetected: 0,
-      rapidKeystrokes: 0,
-      total: 0
-    };
-
-    let typingData = {
-      task1: {
-        lastKeyTime: 0,
-        lastWordCount: 0,
-        keystrokes: 0,
-        lastCalculationTime: 0,
-        currentSpeed: 0,
-        speedViolations: 0,
-        pasteEvents: 0
-      },
-      task2: {
-        lastKeyTime: 0,
-        lastWordCount: 0,
-        keystrokes: 0,
-        lastCalculationTime: 0,
-        currentSpeed: 0,
-        speedViolations: 0,
-        pasteEvents: 0
-      }
-    };
-
-    const SPEED_THRESHOLD = 120;
-    const PASTE_THRESHOLD = 10;
-    const RAPID_KEYSTROKE_THRESHOLD = 50;
-    const MAX_SPEED_VIOLATIONS = 2;
 
     function initializePage() {
       document.getElementById("rulesScreen").style.display = "flex";
@@ -672,126 +633,7 @@
       document.getElementById("studentNameDisplay").innerHTML = 
         `Teacher: ${teacherName}<br>Student: ${studentName}`;
         
-      document.getElementById("violationCounter").style.display = "block";
-      updateViolationCounter();
-      
       startTimer();
-      activateAntiCheating();
-      preloadImage();
-      initializeTypingMonitoring();
-    }
-
-    function updateViolationCounter() {
-      document.getElementById("violationCounter").textContent = `Violations: ${warningCount}/${maxWarnings}`;
-      if (warningCount > 0) {
-        document.getElementById("violationCounter").style.backgroundColor = "#f8d7da";
-        document.getElementById("violationCounter").style.color = "#721c24";
-        document.getElementById("violationCounter").style.borderColor = "#f5c6cb";
-      }
-    }
-
-    function initializeTypingMonitoring() {
-      setInterval(() => {
-        calculateTypingSpeed('1');
-        calculateTypingSpeed('2');
-      }, 3000);
-    }
-
-    function handleTyping(task) {
-      if (!isTestActive || isSubmitted) return;
-      
-      const now = Date.now();
-      const data = typingData[`task${task}`];
-      
-      if (data.lastKeyTime > 0) {
-        const timeDiff = now - data.lastKeyTime;
-        if (timeDiff < RAPID_KEYSTROKE_THRESHOLD) {
-          violations.rapidKeystrokes++;
-        }
-      }
-      
-      data.lastKeyTime = now;
-      data.keystrokes++;
-    }
-
-    function handlePaste(task) {
-      if (!isTestActive || isSubmitted) return;
-      
-      const data = typingData[`task${task}`];
-      const textarea = document.getElementById(`textarea${task}`);
-      const beforePasteWords = textarea.value.trim().split(/\s+/).length;
-      
-      setTimeout(() => {
-        const afterPasteWords = textarea.value.trim().split(/\s+/).length;
-        const wordIncrease = afterPasteWords - beforePasteWords;
-        
-        if (wordIncrease > PASTE_THRESHOLD) {
-          data.pasteEvents++;
-          violations.pasteDetected++;
-          handleTypingViolation(task, `Pasted ${wordIncrease} words detected`);
-        }
-      }, 100);
-    }
-
-    function calculateTypingSpeed(task) {
-      const data = typingData[`task${task}`];
-      const now = Date.now();
-      const textarea = document.getElementById(`textarea${task}`);
-      const currentWordCount = textarea.value.trim().split(/\s+/).length;
-      
-      if (data.lastCalculationTime > 0) {
-        const timeDiff = (now - data.lastCalculationTime) / 1000 / 60;
-        const wordDiff = currentWordCount - data.lastWordCount;
-        
-        if (timeDiff > 0) {
-          data.currentSpeed = Math.round(wordDiff / timeDiff);
-          
-          const speedElement = document.getElementById(`speed${task}`);
-          speedElement.textContent = `Speed: ${data.currentSpeed} WPM`;
-          
-          if (data.currentSpeed > SPEED_THRESHOLD && wordDiff > 5) {
-            speedElement.classList.add('warning');
-            violations.highTypingSpeed++;
-            handleTypingViolation(task, `High typing speed: ${data.currentSpeed} WPM`);
-          } else {
-            speedElement.classList.remove('warning');
-          }
-        }
-      }
-      
-      data.lastCalculationTime = now;
-      data.lastWordCount = currentWordCount;
-      data.keystrokes = 0;
-    }
-
-    function handleTypingViolation(task, reason) {
-      const data = typingData[`task${task}`];
-      data.speedViolations++;
-      
-      if (data.speedViolations >= MAX_SPEED_VIOLATIONS) {
-        handleViolation('typing', reason);
-        data.speedViolations = 0;
-      } else if (data.speedViolations === 1) {
-        document.getElementById("typingWarningModal").style.display = "flex";
-      }
-    }
-
-    function closeTypingWarning() {
-      document.getElementById("typingWarningModal").style.display = "none";
-    }
-
-    function preloadImage() {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-      img.onload = function() {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        task1ImageData = canvas.toDataURL('image/png');
-      };
-      img.src = chosenTask1.image;
     }
 
     function startTimer() {
@@ -816,68 +658,6 @@
         }
         totalSeconds--;
       }, 1000);
-    }
-
-    function activateAntiCheating() {
-      document.addEventListener("visibilitychange", function() {
-        if (document.hidden && isTestActive && !violationDetected) {
-          violations.tabSwitching++;
-          handleViolation('tab_switch', 'Tab switching detected');
-        }
-      });
-
-      window.addEventListener("blur", function() {
-        if (isTestActive && !violationDetected) {
-          violations.appSwitching++;
-          handleViolation('app_switch', 'Application switching detected');
-        }
-      });
-
-      document.addEventListener('contextmenu', function(e) {
-        if (isTestActive) {
-          e.preventDefault();
-          return false;
-        }
-      });
-
-      document.addEventListener('keydown', function(e) {
-        if (isTestActive) {
-          if (e.key === 'F12' || 
-              (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-              (e.ctrlKey && e.shiftKey && e.key === 'C')) {
-            e.preventDefault();
-            return false;
-          }
-        }
-      });
-    }
-
-    function handleViolation(type, reason) {
-      violationDetected = true;
-      violations.total++;
-      
-      warningCount++;
-      updateViolationCounter();
-      
-      if (warningCount >= maxWarnings) {
-        document.getElementById("warningModal").style.display = "flex";
-      } else {
-        alert(`Warning ${warningCount}/${maxWarnings}: ${getViolationMessage(type)} \n\nNext violation will result in automatic test termination.`);
-        
-        setTimeout(() => {
-          violationDetected = false;
-        }, 1000);
-      }
-    }
-
-    function getViolationMessage(type) {
-      const messages = {
-        'tab_switch': 'Switching browser tabs is not allowed during the test.',
-        'app_switch': 'Switching to other applications is not allowed during the test.',
-        'typing': 'Unusual typing pattern detected. Please ensure you are typing your own responses.',
-        'default': 'Test rule violation detected.'
-      };
-      return messages[type] || messages.default;
     }
 
     function updateWordCount(part) {
@@ -908,44 +688,29 @@
       document.getElementById("partBar").innerHTML = partText;
     }
 
-    async function sendToTelegramDirect(message, testData) {
+    async function sendToTelegram(message) {
       try {
-        const baseUrl = window.location.origin;
-        const apiUrl = `${baseUrl}/api/telegram`;
+        console.log('Sending to Telegram:', message);
         
-        const response = await fetch(apiUrl, {
+        const response = await fetch('/api/telegram', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             message: message,
-            studentName: testData.studentName,
-            teacherName: testData.teacherName,
-            violations: testData.violations,
-            task1WordCount: testData.task1WordCount,
-            task2WordCount: testData.task2WordCount,
-            totalWords: testData.totalWords,
-            testDuration: testData.testDuration
+            studentName: studentName,
+            teacherName: teacherName
           })
         });
         
         const result = await response.json();
+        console.log('Telegram response:', result);
         
-        if (result.success) {
-          console.log('✅ Telegram message sent successfully via serverless function');
-          return true;
-        } else {
-          console.error('❌ Serverless function error:', result.error);
-          console.log('TELEGRAM MESSAGE (Fallback):\n' + message);
-          alert('⚠️ Failed to send to Telegram - check console for test data');
-          return false;
-        }
+        return result;
       } catch (error) {
-        console.error('❌ Error sending to serverless function:', error);
-        console.log('TELEGRAM MESSAGE (Fallback):\n' + message);
-        alert('❌ Network error - check console for test data');
-        return false;
+        console.error('Error sending to Telegram:', error);
+        return { success: false, error: error.message };
       }
     }
 
@@ -956,6 +721,7 @@
       }
       
       document.getElementById("loadingIndicator").style.display = "block";
+      document.getElementById("submitButton").disabled = true;
       
       const task1Answer = document.getElementById("textarea1").value;
       const task2Answer = document.getElementById("textarea2").value;
@@ -985,7 +751,7 @@ ${task1Answer}
 
 📊 Task 1 Statistics:
 • Words: ${task1WordCount}
-• Actual Word Count: ${task1WordCount}
+• Status: ${task1WordCount < 150 ? "❌ BELOW MINIMUM" : "✅ SUFFICIENT"}
 
 📝 TASK 2 - ESSAY WRITING
 Question:
@@ -996,41 +762,37 @@ ${task2Answer}
 
 📊 Task 2 Statistics:
 • Words: ${task2WordCount}
-• Actual Word Count: ${task2WordCount}
+• Status: ${task2WordCount < 250 ? "❌ BELOW MINIMUM" : "✅ SUFFICIENT"}
 
 📈 OVERALL STATISTICS
 • Total Words Written: ${totalWords}
-• Task 1 Words: ${task1WordCount} ${task1WordCount < 150 ? "❌" : "✅"}
-• Task 2 Words: ${task2WordCount} ${task2WordCount < 250 ? "❌" : "✅"}
-
-🚨 VIOLATION REPORT
-• Total Violations: ${violations.total}
-• Tab Switching: ${violations.tabSwitching}
-• App Switching: ${violations.appSwitching}
-• High Typing Speed: ${violations.highTypingSpeed}
-• Paste Detected: ${violations.pasteDetected}
-• Rapid Keystrokes: ${violations.rapidKeystrokes}
-• Final Warnings: ${warningCount}/${maxWarnings}
+• Task 1 Words: ${task1WordCount}
+• Task 2 Words: ${task2WordCount}
 
 ---
 ✅ Test automatically submitted and recorded
 🕒 System Time: ${new Date().toLocaleString()}`;
 
-      const testData = {
-        studentName: studentName,
-        teacherName: teacherName,
-        violations: violations,
-        task1WordCount: task1WordCount,
-        task2WordCount: task2WordCount,
-        totalWords: totalWords,
-        testDuration: (60 * 60 - totalSeconds)
-      };
-
-      await sendToTelegramDirect(telegramMessage, testData);
-      
-      downloadPDF();
+      // Send to Telegram
+      const telegramResult = await sendToTelegram(telegramMessage);
       
       document.getElementById("loadingIndicator").style.display = "none";
+      
+      // Show Telegram status
+      const statusElement = document.getElementById("telegramStatus");
+      statusElement.style.display = "block";
+      
+      if (telegramResult.success) {
+        statusElement.textContent = "✅ Test submitted successfully and sent to examiner via Telegram!";
+        statusElement.className = "telegram-status success";
+      } else {
+        statusElement.textContent = "⚠️ Test submitted but failed to send to Telegram. Check console for details.";
+        statusElement.className = "telegram-status error";
+        console.error("Telegram error:", telegramResult.error);
+      }
+      
+      // Generate PDF
+      downloadPDF(task1Answer, task2Answer, task1WordCount, task2WordCount);
       
       isTestActive = false;
       isSubmitted = true;
@@ -1048,125 +810,50 @@ ${task2Answer}
       alert("You are now in review mode. You can read your answers but cannot make changes.");
     }
 
-    function downloadPDF() {
+    function downloadPDF(task1Answer, task2Answer, task1WordCount, task2WordCount) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
+      // Header
       doc.setFontSize(16);
-      doc.text("IELTS Writing Test - Set Three", 10, 10);
+      doc.text("IELTS Writing Test - Set Three", 20, 20);
       doc.setFontSize(12);
-      doc.text(`Teacher: ${teacherName}`, 10, 20);
-      doc.text(`Student: ${studentName}`, 10, 30);
-      doc.text(`Timestamp: ${new Date().toLocaleString()}`, 10, 40);
-      doc.text(`Violations: ${violations.total} (${warningCount}/2 warnings)`, 10, 50);
-      
+      doc.text(`Teacher: ${teacherName}`, 20, 35);
+      doc.text(`Student: ${studentName}`, 20, 45);
+      doc.text(`Timestamp: ${new Date().toLocaleString()}`, 20, 55);
+
+      // Task 1
       doc.setFontSize(14);
-      doc.text("IELTS Writing Task 1", 10, 65);
+      doc.text("Writing Task 1", 20, 75);
       doc.setFontSize(12);
+      doc.text(`Word Count: ${task1WordCount}`, 20, 85);
       
-      let yOffset = 75;
-      if (chosenTask1.question) {
-        const task1Lines = doc.splitTextToSize(chosenTask1.question.replace(/\n/g, " "), 180);
-        doc.text(task1Lines, 10, yOffset);
-        yOffset += task1Lines.length * 5 + 5;
-      }
+      const task1Question = "The graph below shows the number of inquiries received by the Tourist Information Office in one city over a six-month period in 2011. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.";
+      const task1Lines = doc.splitTextToSize(task1Question, 170);
+      doc.text(task1Lines, 20, 100);
       
-      if (task1ImageData) {
-        const img = new Image();
-        img.src = task1ImageData;
-        img.onload = function() {
-          const imgWidth = img.width;
-          const imgHeight = img.height;
-          const maxWidth = 180;
-          const maxHeight = 80;
-          let width = imgWidth;
-          let height = imgHeight;
+      doc.text("Student's Answer:", 20, 130);
+      const answer1Lines = doc.splitTextToSize(task1Answer, 170);
+      doc.text(answer1Lines, 20, 140);
 
-          if (width > maxWidth) {
-            height = (maxWidth / width) * height;
-            width = maxWidth;
-          }
-          if (height > maxHeight) {
-            width = (maxHeight / height) * width;
-            height = maxHeight;
-          }
+      // Task 2 (new page)
+      doc.addPage();
+      doc.setFontSize(14);
+      doc.text("Writing Task 2", 20, 20);
+      doc.setFontSize(12);
+      doc.text(`Word Count: ${task2WordCount}`, 20, 30);
+      
+      const task2Question = "In many countries, traditional foods are being replaced by fast food. This has a negative impact on families, individuals, and society. To what extent do you agree or disagree?";
+      const task2Lines = doc.splitTextToSize(task2Question, 170);
+      doc.text(task2Lines, 20, 45);
+      
+      doc.text("Student's Answer:", 20, 75);
+      const answer2Lines = doc.splitTextToSize(task2Answer, 170);
+      doc.text(answer2Lines, 20, 85);
 
-          doc.addImage(task1ImageData, "PNG", 10, yOffset, width, height);
-          doc.text("Answer:", 10, yOffset + height + 10);
-          const answerLines = doc.splitTextToSize(document.getElementById("textarea1").value, 180);
-          doc.text(answerLines, 10, yOffset + height + 20);
-
-          doc.addPage();
-          doc.setFontSize(16);
-          doc.text("IELTS Writing Test - Set Three", 10, 10);
-          doc.setFontSize(12);
-          doc.text(`Teacher: ${teacherName}`, 10, 20);
-          doc.text(`Student: ${studentName}`, 10, 30);
-          doc.text(`Violations: ${violations.total} (${warningCount}/2 warnings)`, 10, 40);
-          doc.setFontSize(14);
-          doc.text("IELTS Writing Task 2", 10, 55);
-          doc.setFontSize(12);
-          
-          if (chosenTask2) {
-            const task2Lines = doc.splitTextToSize(chosenTask2.replace(/\n/g, " "), 180);
-            doc.text(task2Lines, 10, 65);
-            doc.text("Answer:", 10, 95);
-            const answer2Lines = doc.splitTextToSize(document.getElementById("textarea2").value, 180);
-            doc.text(answer2Lines, 10, 105);
-          }
-
-          doc.save(`IELTS_Writing_${studentName.replace(/\s+/g, '_')}.pdf`);
-        };
-      } else {
-        doc.text("Answer:", 10, yOffset);
-        const answerLines = doc.splitTextToSize(document.getElementById("textarea1").value, 180);
-        doc.text(answerLines, 10, yOffset + 10);
-
-        doc.addPage();
-        doc.setFontSize(16);
-        doc.text("IELTS Writing Test - Set Three", 10, 10);
-        doc.setFontSize(12);
-        doc.text(`Teacher: ${teacherName}`, 10, 20);
-        doc.text(`Student: ${studentName}`, 10, 30);
-        doc.text(`Violations: ${violations.total} (${warningCount}/2 warnings)`, 10, 40);
-        doc.setFontSize(14);
-        doc.text("IELTS Writing Task 2", 10, 55);
-        doc.setFontSize(12);
-        
-        if (chosenTask2) {
-          const task2Lines = doc.splitTextToSize(chosenTask2.replace(/\n/g, " "), 180);
-          doc.text(task2Lines, 10, 65);
-          doc.text("Answer:", 10, 95);
-          const answer2Lines = doc.splitTextToSize(document.getElementById("textarea2").value, 180);
-          doc.text(answer2Lines, 10, 105);
-        }
-
-        doc.save(`IELTS_Writing_${studentName.replace(/\s+/g, '_')}.pdf`);
-      }
+      // Save PDF
+      doc.save(`IELTS_Writing_${studentName.replace(/\s+/g, '_')}.pdf`);
     }
-
-    function forceSubmit() {
-      isTestActive = false;
-      violationDetected = false;
-      document.getElementById("warningModal").style.display = "none";
-      submitTest();
-      clearInterval(timer);
-    }
-
-    window.onbeforeunload = function (e) {
-      if (isTestActive && !isSubmitted && !beforeUnloadTriggered) {
-        const message = "Are you sure you want to leave? Your test progress may be lost.";
-        e.returnValue = message;
-        return message;
-      }
-    };
-
-    window.addEventListener('unload', function() {
-      if (isTestActive && !isSubmitted && !beforeUnloadTriggered) {
-        beforeUnloadTriggered = true;
-        submitTest();
-      }
-    });
 
     window.onload = initializePage;
   </script>
