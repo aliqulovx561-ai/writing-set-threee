@@ -21,28 +21,39 @@ export default async function handler(request, response) {
   try {
     const { message, studentName, teacherName } = request.body;
 
-    console.log('Received request to send Telegram message');
-    console.log('Student:', studentName);
-    console.log('Teacher:', teacherName);
+    console.log('📨 Received Telegram request for student:', studentName);
 
     // Get credentials from environment variables
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-    console.log('Bot Token exists:', !!TELEGRAM_BOT_TOKEN);
-    console.log('Chat ID exists:', !!TELEGRAM_CHAT_ID);
+    console.log('🔑 Bot Token exists:', !!TELEGRAM_BOT_TOKEN);
+    console.log('💬 Chat ID exists:', !!TELEGRAM_CHAT_ID);
 
     // Check if credentials are set
-    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-      console.error('Missing Telegram credentials');
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.error('❌ Missing TELEGRAM_BOT_TOKEN');
       return response.status(500).json({
         success: false,
-        error: 'Telegram bot not configured - check environment variables'
+        error: 'Telegram Bot Token not configured'
       });
     }
 
+    if (!TELEGRAM_CHAT_ID) {
+      console.error('❌ Missing TELEGRAM_CHAT_ID');
+      return response.status(500).json({
+        success: false,
+        error: 'Telegram Chat ID not configured'
+      });
+    }
+
+    console.log('🔄 Sending to Telegram API...');
+    
     // Send message to Telegram
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    console.log('📡 Telegram URL:', telegramUrl.replace(TELEGRAM_BOT_TOKEN, 'HIDDEN'));
+
+    const telegramResponse = await fetch(telegramUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -55,11 +66,10 @@ export default async function handler(request, response) {
     });
 
     const result = await telegramResponse.json();
-
-    console.log('Telegram API response:', result);
+    console.log('📩 Telegram API response:', result);
 
     if (result.ok) {
-      console.log('✅ Message sent to Telegram successfully');
+      console.log('✅ Message sent to Telegram successfully!');
       return response.status(200).json({
         success: true,
         message: 'Test submitted successfully'
@@ -74,7 +84,7 @@ export default async function handler(request, response) {
     }
 
   } catch (error) {
-    console.error('❌ Server error:', error);
+    console.error('💥 Server error:', error);
     return response.status(500).json({
       success: false,
       error: `Internal server error: ${error.message}`
