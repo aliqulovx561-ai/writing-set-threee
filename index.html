@@ -894,7 +894,7 @@
 
     async function sendToTelegram(message) {
       try {
-        console.log('🔵 Sending to Telegram API...');
+        console.log('Starting Telegram send...');
         
         const response = await fetch('/api/telegram', {
           method: 'POST',
@@ -907,18 +907,17 @@
             teacherName: teacherName
           })
         });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+
         const result = await response.json();
-        console.log('🟢 Telegram API response:', result);
+        console.log('Telegram result:', result);
         
         return result;
       } catch (error) {
-        console.error('🔴 Error sending to Telegram:', error);
-        return { success: false, error: error.message };
+        console.error('Telegram error:', error);
+        return { 
+          success: false, 
+          error: error.message 
+        };
       }
     }
 
@@ -937,38 +936,27 @@
       const task2WordCount = task2Answer.trim() === "" ? 0 : task2Answer.trim().split(/\s+/).length;
       const totalWords = task1WordCount + task2WordCount;
       
-      const telegramMessage = `📝 IELTS WRITING TEST - SET THREE
+      const telegramMessage = `🎯 IELTS WRITING TEST - SET THREE
 
-👤 STUDENT INFORMATION
-• Teacher: ${teacherName}
-• Student: ${studentName}
-• Timestamp: ${new Date().toLocaleString()}
-• Duration: ${(60 * 60 - totalSeconds)} seconds
-• Violations: ${violations.total}
+👤 Student: ${studentName}
+👨‍🏫 Teacher: ${teacherName}
+⏰ Time: ${Math.floor((60 * 60 - totalSeconds) / 60)}:${(60 * 60 - totalSeconds) % 60}
+📊 Violations: ${violations.total}
 
-📋 TASK 1 - GRAPH DESCRIPTION
-Word Count: ${task1WordCount} ${task1WordCount < 150 ? "❌" : "✅"}
-
-Student's Answer:
+📝 TASK 1 (${task1WordCount} words):
 ${task1Answer}
 
-📝 TASK 2 - ESSAY WRITING  
-Word Count: ${task2WordCount} ${task2WordCount < 250 ? "❌" : "✅"}
-
-Student's Answer:
+📝 TASK 2 (${task2WordCount} words):  
 ${task2Answer}
 
-📈 SUMMARY
-• Total Words: ${totalWords}
-• Task 1: ${task1WordCount} words
-• Task 2: ${task2WordCount} words
+📈 SUMMARY:
+• Task 1: ${task1WordCount} words ${task1WordCount < 150 ? '❌' : '✅'}
+• Task 2: ${task2WordCount} words ${task2WordCount < 250 ? '❌' : '✅'}
+• Total: ${totalWords} words
 • Violations: ${violations.total}
 
----
-Test automatically submitted via IELTS Writing Platform`;
+🕒 ${new Date().toLocaleString()}`;
 
-      console.log('📤 Attempting to send Telegram message...');
-      
       // Send to Telegram
       const telegramResult = await sendToTelegram(telegramMessage);
       
@@ -979,13 +967,11 @@ Test automatically submitted via IELTS Writing Platform`;
       statusElement.style.display = "block";
       
       if (telegramResult.success) {
-        statusElement.textContent = "✅ Test submitted successfully and sent to examiner via Telegram!";
+        statusElement.textContent = "✅ Test submitted successfully! Telegram message sent.";
         statusElement.className = "telegram-status success";
-        console.log('✅ Telegram message sent successfully!');
       } else {
-        statusElement.textContent = "⚠️ Test submitted but failed to send to Telegram. Check console for details.";
+        statusElement.textContent = `❌ Telegram failed: ${telegramResult.error}`;
         statusElement.className = "telegram-status error";
-        console.error('❌ Telegram failed:', telegramResult.error);
       }
       
       // Generate PDF
