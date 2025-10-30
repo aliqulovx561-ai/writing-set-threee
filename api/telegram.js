@@ -1,93 +1,80 @@
-export default async function handler(request, response) {
-  // Set CORS headers
-  response.setHeader('Access-Control-Allow-Credentials', true);
-  response.setHeader('Access-Control-Allow-Origin', '*');
-  response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  response.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+export default async function handler(req, res) {
+  // Handle CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Handle OPTIONS request for CORS
-  if (request.method === 'OPTIONS') {
-    return response.status(200).end();
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
-  // Only allow POST requests
-  if (request.method !== 'POST') {
-    return response.status(405).json({
-      success: false,
-      error: 'Method not allowed'
-    });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { message, studentName, teacherName } = request.body;
+    const { message, studentName, teacherName } = req.body;
 
-    console.log('📨 Received Telegram request for student:', studentName);
+    console.log('=== TELEGRAM REQUEST ===');
+    console.log('Student:', studentName);
+    console.log('Teacher:', teacherName);
 
-    // Get credentials from environment variables
-    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-    const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+    // Get environment variables
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-    console.log('🔑 Bot Token exists:', !!TELEGRAM_BOT_TOKEN);
-    console.log('💬 Chat ID exists:', !!TELEGRAM_CHAT_ID);
+    console.log('Bot Token exists:', !!BOT_TOKEN);
+    console.log('Chat ID exists:', !!CHAT_ID);
 
-    // Check if credentials are set
-    if (!TELEGRAM_BOT_TOKEN) {
-      console.error('❌ Missing TELEGRAM_BOT_TOKEN');
-      return response.status(500).json({
+    if (!BOT_TOKEN || !CHAT_ID) {
+      console.error('MISSING ENVIRONMENT VARIABLES');
+      return res.status(500).json({
         success: false,
-        error: 'Telegram Bot Token not configured'
+        error: 'Telegram credentials not configured. Please check environment variables.'
       });
     }
 
-    if (!TELEGRAM_CHAT_ID) {
-      console.error('❌ Missing TELEGRAM_CHAT_ID');
-      return response.status(500).json({
-        success: false,
-        error: 'Telegram Chat ID not configured'
-      });
-    }
-
-    console.log('🔄 Sending to Telegram API...');
+    const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
     
-    // Send message to Telegram
-    const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    console.log('📡 Telegram URL:', telegramUrl.replace(TELEGRAM_BOT_TOKEN, 'HIDDEN'));
+    const payload = {
+      chat_id: CHAT_ID,
+      text: message,
+      parse_mode: 'HTML'
+    };
 
-    const telegramResponse = await fetch(telegramUrl, {
+    console.log('Sending to Telegram...');
+    
+    const response = await fetch(telegramUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: 'HTML'
-      })
+      body: JSON.stringify(payload)
     });
 
-    const result = await telegramResponse.json();
-    console.log('📩 Telegram API response:', result);
+    const result = await response.json();
+    console.log('Telegram API response:', result);
 
     if (result.ok) {
-      console.log('✅ Message sent to Telegram successfully!');
-      return response.status(200).json({
+      console.log('✅ TELEGRAM MESSAGE SENT SUCCESSFULLY');
+      return res.json({
         success: true,
-        message: 'Test submitted successfully'
+        message: 'Message sent to Telegram successfully'
       });
     } else {
-      console.error('❌ Telegram API error:', result);
-      return response.status(500).json({
+      console.error('❌ TELEGRAM ERROR:', result.description);
+      return res.status(500).json({
         success: false,
-        error: `Telegram API error: ${result.description || 'Unknown error'}`,
-        details: result
+        error: result.description || 'Unknown Telegram error'
       });
     }
 
   } catch (error) {
-    console.error('💥 Server error:', error);
-    return response.status(500).json({
+    console.error('💥 SERVER ERROR:', error);
+    return res.status(500).json({
       success: false,
-      error: `Internal server error: ${error.message}`
+      error: error.message
     });
   }
 }
