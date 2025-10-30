@@ -936,27 +936,60 @@
       const task2WordCount = task2Answer.trim() === "" ? 0 : task2Answer.trim().split(/\s+/).length;
       const totalWords = task1WordCount + task2WordCount;
       
-      const telegramMessage = `🎯 IELTS WRITING TEST - SET THREE
+      const telegramMessage = `📝 IELTS WRITING TEST SUBMITTED
 
-👤 Student: ${studentName}
-👨‍🏫 Teacher: ${teacherName}
-⏰ Time: ${Math.floor((60 * 60 - totalSeconds) / 60)}:${(60 * 60 - totalSeconds) % 60}
-📊 Violations: ${violations.total}
+👤 STUDENT INFORMATION
+• Name: ${studentName}
+• Test: IELTS Writing Test - Set Three
+• Timestamp: ${new Date().toLocaleString()}
+• Duration: ${(60 * 60 - totalSeconds)} seconds
 
-📝 TASK 1 (${task1WordCount} words):
+📋 TASK 1 - GRAPH DESCRIPTION
+Question:
+The graph below shows the number of inquiries received by the Tourist Information Office in one city over a six-month period in 2011.
+
+Summarise the information by selecting and reporting the main features, and make comparisons where relevant.
+
+Write at least 150 words.
+
+📝 Student's Answer:
 ${task1Answer}
 
-📝 TASK 2 (${task2WordCount} words):  
+📊 Task 1 Statistics:
+• Words: ${task1WordCount}
+• Actual Word Count: ${task1WordCount}
+
+📝 TASK 2 - ESSAY WRITING
+Question:
+In many countries, traditional foods are being replaced by fast food. This has a negative impact on families, individuals, and society. To what extent do you agree or disagree?
+
+📝 Student's Answer:
 ${task2Answer}
 
-📈 SUMMARY:
-• Task 1: ${task1WordCount} words ${task1WordCount < 150 ? '❌' : '✅'}
-• Task 2: ${task2WordCount} words ${task2WordCount < 250 ? '❌' : '✅'}
-• Total: ${totalWords} words
-• Violations: ${violations.total}
+📊 Task 2 Statistics:
+• Words: ${task2WordCount}
+• Actual Word Count: ${task2WordCount}
 
-🕒 ${new Date().toLocaleString()}`;
+📈 OVERALL STATISTICS
+• Total Words Written: ${totalWords}
+• Task 1 Words: ${task1WordCount} ${task1WordCount < 150 ? "❌" : "✅"}
+• Task 2 Words: ${task2WordCount} ${task2WordCount < 250 ? "❌" : "✅"}
 
+🚨 VIOLATION REPORT
+• Total Violations: ${violations.total}
+• Tab Switching: ${violations.tabSwitching}
+• App Switching: ${violations.appSwitching}
+• High Typing Speed: ${violations.highTypingSpeed}
+• Paste Detected: ${violations.pasteDetected}
+• Rapid Keystrokes: ${violations.rapidKeystrokes}
+• Final Warnings: ${warningCount}/${maxWarnings}
+
+---
+✅ Test automatically submitted and recorded
+🕒 System Time: ${new Date().toLocaleString()}`;
+
+      console.log('Sending Telegram message...');
+      
       // Send to Telegram
       const telegramResult = await sendToTelegram(telegramMessage);
       
@@ -969,9 +1002,11 @@ ${task2Answer}
       if (telegramResult.success) {
         statusElement.textContent = "✅ Test submitted successfully! Telegram message sent.";
         statusElement.className = "telegram-status success";
+        console.log('✅ Telegram message sent successfully!');
       } else {
-        statusElement.textContent = `❌ Telegram failed: ${telegramResult.error}`;
+        statusElement.textContent = `⚠️ Test submitted but failed to send to Telegram: ${telegramResult.error}`;
         statusElement.className = "telegram-status error";
+        console.error('❌ Telegram failed:', telegramResult.error);
       }
       
       // Generate PDF
